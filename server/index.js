@@ -33,6 +33,7 @@ const os = require('node:os');
 
 const VERSION = '1.3.6';
 const SUPPORTED_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
+const CHATGPT = process.argv.includes('--chatgpt', 2);
 
 const rawToken = (process.env.THINGS_AUTH_TOKEN || '').trim();
 const AUTH_TOKEN = rawToken.startsWith('${') ? '' : rawToken; // unfilled installer placeholder
@@ -89,7 +90,8 @@ function redactToken(text) {
 function friendlyError(detail) {
   if (/-1743|not authori[sz]ed|Not allowed to send Apple events/i.test(detail)) {
     return 'macOS blocked access to Things. Open System Settings → Privacy & Security → Automation, ' +
-      'find Claude, and turn on Things3. Then try again.';
+      (CHATGPT ? 'find the app that launched the server on your Mac (ChatGPT or your terminal), '
+        : 'find Claude, ') + 'and turn on Things3. Then try again.';
   }
   if (/-1728|Can.t get/i.test(detail)) return 'Things could not find that item. It may have been deleted or the ID is wrong.';
   const m = detail.match(/Error: (.*?)(?: \(-?\d+\))?$/m);
@@ -247,13 +249,14 @@ function openThingsUrl(url) {
 
 const THINGS_GROUP = path.join(os.homedir(), 'Library', 'Group Containers', 'JLMPQHK86H.com.culturedcode.ThingsMac');
 const CHECK_STATUS = { 0: 'open', 2: 'canceled', 3: 'completed' };
+const DATA_ACCESS_APP = CHATGPT ? 'ChatGPT or your terminal' : 'Claude';
 
 function findDatabase() {
   const override = process.env.THINGS_LOCAL_DB_PATH; // tests only
   if (override) return override;
   let dirs;
   try { dirs = fs.readdirSync(THINGS_GROUP).filter((d) => d.startsWith('ThingsData-')); } catch (e) {
-    throw new Error('Could not open Things\' data folder. If macOS asked whether Claude may access data from other apps, choose Allow and try again.');
+    throw new Error(`Could not open Things' data folder. If macOS asked whether ${DATA_ACCESS_APP} may access data from other apps, choose Allow and try again.`);
   }
   for (const d of dirs) {
     const p = path.join(THINGS_GROUP, d, 'Things Database.thingsdatabase', 'main.sqlite');
@@ -273,7 +276,7 @@ function readDb(fn) {
   if (!size) throw new Error('Could not find the Things database on this Mac (or it is empty). Nothing was changed.');
   let db;
   try { db = new DatabaseSync(file, { readOnly: true }); } catch (e) {
-    throw new Error('Could not open the Things database (' + e.message + '). If macOS asked whether Claude may access data from other apps, choose Allow and try again. Nothing was changed.');
+    throw new Error(`Could not open the Things database (${e.message}). If macOS asked whether ${DATA_ACCESS_APP} may access data from other apps, choose Allow and try again. Nothing was changed.`);
   }
   try {
     db.exec('PRAGMA query_only = ON');
@@ -908,7 +911,8 @@ const BULK_MOVE_SCRIPT = `on run argv
 end run`;
 
 const TOKEN_HELP ='This needs your Things URL auth token. In Things: Settings → General → Enable Things URLs → Manage, ' +
-  'copy the token, then add it in Claude → Settings → Extensions → Things (Local).';
+  (CHATGPT ? 'copy the token into the local THINGS_AUTH_TOKEN environment file and restart the server.'
+    : 'copy the token, then add it in Claude → Settings → Extensions → Things (Local).');
 
 // ---------------------------------------------------------------------------
 // Tools
@@ -1423,6 +1427,23 @@ const INSTRUCTIONS =
   'Confirm with the user before bulk changes or trashing items.' +
   (AUTH_TOKEN ? '' : ' No auth token is set, so evening/reminder-time scheduling, checklist edits, heading moves, clearing deadlines and duplicating are unavailable on existing items; creating items still supports them.');
 
+// These tools can overwrite existing values or remove items from active lists.
+const DESTRUCTIVE_TOOLS = new Set([
+  'update_item', 'update_area', 'bulk_update', 'set_checklist_items', 'update_tag', 'move_to_trash',
+]);
+
+function describeTool({ run, ...tool }) {
+  if (!CHATGPT) return tool;
+  return {
+    ...tool,
+    annotations: {
+      readOnlyHint: tool.annotations?.readOnlyHint === true && tool.name !== 'show_in_things',
+      destructiveHint: DESTRUCTIVE_TOOLS.has(tool.name),
+      openWorldHint: false,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // MCP protocol (JSON-RPC 2.0 over stdin/stdout, one message per line)
 // ---------------------------------------------------------------------------
@@ -1450,7 +1471,7 @@ async function handle(msg) {
     }
     case 'ping': reply({}); return;
     case 'tools/list':
-      reply({ tools: TOOLS.map(({ run, ...t }) => t) });
+      reply({ tools: TOOLS.map(describeTool) });
       return;
     case 'tools/call': {
       const name = msg.params && msg.params.name;
@@ -1460,7 +1481,8 @@ async function handle(msg) {
         const out = fixTypes(await tool.run((msg.params && msg.params.arguments) || {}));
         reply({ content: [{ type: 'text', text: JSON.stringify(out, null, 1) }] });
       } catch (e) {
-        log(`${name} failed: ${e.message}`);
+        // The tunnel client inherits stderr. Keep task details in the tool reply.
+        log(CHATGPT ? `${name} failed` : `${name} failed: ${e.message}`);
         reply({ content: [{ type: 'text', text: `Error: ${e.message}` }], isError: true });
       }
       return;
@@ -1476,7 +1498,7 @@ function start() {
     if (!line.trim()) return;
     let msg;
     try { msg = JSON.parse(line); } catch (e) { send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }); return; }
-    handle(msg).catch((e) => log('internal error:', e.message));
+    handle(msg).catch((e) => log(CHATGPT ? 'internal error' : 'internal error: ' + e.message));
   });
   rl.on('close', () => process.exit(0));
   log(`started v${VERSION}${AUTH_TOKEN ? ' (auth token set)' : ''}`);

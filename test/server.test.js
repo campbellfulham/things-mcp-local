@@ -187,7 +187,10 @@ ok('input validation rejects malformed dates');
 // 4. MCP protocol over stdio, including when loaded through a wrapper
 function talk(args, messages) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, THINGS_LOCAL_DB_PATH: '/nonexistent' } });
+    const child = spawn(process.execPath, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, THINGS_AUTH_TOKEN: '', THINGS_LOCAL_DB_PATH: '/nonexistent' },
+    });
     const lines = []; let buf = '';
     child.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { lines.push(JSON.parse(buf.slice(0, i))); buf = buf.slice(i + 1); } });
     for (const m of messages) child.stdin.write(JSON.stringify(m) + '\n');
@@ -211,6 +214,7 @@ function talk(args, messages) {
   const tools = byId[2].result.tools;
   assert.strictEqual(tools.length, 26);
   assert.ok(tools.every((t) => !('run' in t) && t.inputSchema.type === 'object'));
+  assert.deepStrictEqual(tools, M.TOOLS.map(({ run, ...tool }) => tool));
   assert.ok(byId[3].result.isError && /"when" must be/.test(byId[3].result.content[0].text));
   assert.strictEqual(byId[4].error.code, -32601);
   assert.ok(/not passed|empty|received|placeholder/.test(JSON.parse(byId[5].result.content[0].text).authToken));
@@ -221,6 +225,26 @@ function talk(args, messages) {
   const viaWrapper = await talk([wrapper, SERVER], msgs.slice(0, 1));
   assert.strictEqual(viaWrapper[0].result.serverInfo.name, 'things-local');
   ok('starts correctly when the host loads it through a wrapper (the v1.0.0 timeout bug)');
+
+  const chatgptLines = await talk([SERVER, '--chatgpt'], msgs.concat({
+    jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'duplicate_item', arguments: { id: 'test-id' } },
+  }));
+  const chatgpt = Object.fromEntries(chatgptLines.map((line) => [line.id, line]));
+  assert.deepStrictEqual(chatgpt[1], byId[1]);
+  const chatgptTools = chatgpt[2].result.tools;
+  const withoutAnnotations = ({ annotations, ...tool }) => tool;
+  assert.deepStrictEqual(chatgptTools.map(withoutAnnotations), tools.map(withoutAnnotations));
+  assert.ok(chatgptTools.every(({ annotations }) => annotations.openWorldHint === false));
+  const annotationsFor = (predicate) => chatgptTools.filter(({ annotations }) => predicate(annotations)).map(({ name }) => name).sort();
+  assert.deepStrictEqual(annotationsFor((a) => a.readOnlyHint === true),
+    tools.filter((t) => t.annotations?.readOnlyHint && t.name !== 'show_in_things').map((t) => t.name).sort());
+  assert.deepStrictEqual(annotationsFor((a) => a.destructiveHint === true),
+    ['bulk_update', 'move_to_trash', 'set_checklist_items', 'update_area', 'update_item', 'update_tag']);
+  assert.ok(chatgptTools.every(({ annotations }) =>
+    typeof annotations.readOnlyHint === 'boolean' && typeof annotations.destructiveHint === 'boolean'));
+  assert.deepStrictEqual(chatgpt[3], byId[3]);
+  assert.match(chatgpt[6].result.content[0].text, /local THINGS_AUTH_TOKEN environment file/);
+  ok('ChatGPT discovers all 26 unchanged tool schemas with explicit annotations and local token help');
 
   // Regression (found in pre-publish QA): a failed /usr/bin/open put the full
   // command line, auth token included, into the error shown to Claude and the log.
