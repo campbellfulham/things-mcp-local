@@ -1,6 +1,6 @@
 # Things MCP Server
 
-This is a zero-dependency bridge that allows Claude to read and manage [Things 3](https://culturedcode.com/things/) on your Mac.
+This is a zero-dependency bridge that allows Claude and ChatGPT to read and manage [Things 3](https://culturedcode.com/things/) on your Mac.
 
 - Runs completely locally, nothing is downloaded at install
 - No third-party packages, only uses Node's built-in modules
@@ -19,7 +19,7 @@ This is a zero-dependency bridge that allows Claude to read and manage [Things 3
 | **Find** | Find tool allows for detailed search and filter of any items based on text, tag, status, deadline, or even a created/completed date range. |
 | **Misc** | Move to Trash (always reversible), open an item in Things app, and MCP status check. |
 
-## Install
+## Install for Claude
 
 **Requirements:** macOS, Things 3, and the Claude desktop app (which supplies Node, so there's nothing else to install).
 
@@ -33,6 +33,10 @@ Without it, everything works except evening/reminder times, checklist edits, hea
 
 **Then install a newer version of the extension.** The Claude app only applies a saved token on install or update, so restarting isn't enough. To confirm, ask Claude to run the `status` tool, which reports whether the token arrived without showing it.
 
+## Set up ChatGPT on Mac or iPhone
+
+Use the same 26 Things tools in a local Codex chat on your Mac or from the ChatGPT iPhone app through a paired Mac. For regular Chat or Work, connect a personal custom MCP plugin through OpenAI Secure MCP Tunnel. See the [ChatGPT setup guide](docs/chatgpt.md).
+
 ## Limitations
 
 - **macOS only**, as Things' automation interfaces are Mac-only.
@@ -43,7 +47,7 @@ Without it, everything works except evening/reminder times, checklist edits, hea
 ## Development
 
 ```bash
-npm test     # 26 offline test groups; no Mac or Things needed (Node 22.5+)
+npm test     # offline tests; no Mac or Things needed (Node 22.5+)
 npm run pack # builds things-local.mcpb with Anthropic's official packager
 ```
 

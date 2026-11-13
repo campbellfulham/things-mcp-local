@@ -4,6 +4,7 @@
 // Things' own. Needs Node 22.5+ (built-in node:sqlite). Run with `npm test`.
 
 const assert = require('node:assert');
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -155,6 +156,46 @@ const usage = Object.fromEntries(r.tags.map((t) => [t.title, [t.openItems, t.all
 assert.deepStrictEqual(usage, { Health: [1, 2, 1], Dental: [1, 1, 0], Errand: [1, 1, 0], Unused: [0, 0, 0] });
 assert.deepStrictEqual(M.dbTagUsage(true).tags.map((t) => t.title), ['Unused']);
 ok('tag usage counts open/all items and areas; finds unused tags');
+
+// Exercise the same stdio command used by Codex and tunnel-client using only
+// the fixture. A missing tag error includes fixture data in the tool reply.
+const tokenFile = path.join(path.dirname(dbPath), 'things.env');
+const testToken = 'fixture-token/+713';
+fs.writeFileSync(tokenFile, `THINGS_AUTH_TOKEN=${testToken}\n`, { mode: 0o600 });
+const childEnv = { ...process.env };
+delete childEnv.THINGS_LOCAL_NO_START;
+delete childEnv.THINGS_AUTH_TOKEN;
+const requests = [
+  ['status', {}],
+  ['find', { text: '100% fun' }],
+  ['find', { tag: 'missing-fixture-tag' }],
+];
+const probe = spawnSync(process.execPath, [
+  `--env-file=${tokenFile}`, path.join(__dirname, '..', 'server', 'index.js'), '--chatgpt',
+], {
+  input: requests.map(([name, args], id) =>
+    JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } })).join('\n') + '\n',
+  env: childEnv,
+  encoding: 'utf8',
+  timeout: 5000,
+});
+fs.unlinkSync(tokenFile);
+assert.ifError(probe.error);
+assert.strictEqual(probe.status, 0, probe.stderr);
+const replies = Object.fromEntries(probe.stdout.trim().split('\n').map((line) => {
+  const { id, result } = JSON.parse(line);
+  return [id, result];
+}));
+assert.match(replies[0].content[0].text, /"authToken": "received/);
+assert.deepStrictEqual(JSON.parse(replies[1].content[0].text), find({ text: '100% fun' }));
+assert.strictEqual(replies[2].isError, true);
+assert.match(replies[2].content[0].text, /missing-fixture-tag.*Dental/);
+assert.match(probe.stderr, /find failed/);
+assert.doesNotMatch(probe.stderr, /missing-fixture-tag|Dental|Loose to-do|100% fun/);
+for (const secret of [testToken, encodeURIComponent(testToken)]) {
+  assert.ok(!probe.stdout.includes(secret) && !probe.stderr.includes(secret));
+}
+ok('ChatGPT stdio reads the fixture, loads a local token and omits task details from logs');
 
 // Safety
 // Both layers, on the connection the server itself opens:
