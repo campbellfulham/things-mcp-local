@@ -1,0 +1,159 @@
+{
+  "manifest_version": "0.2",
+  "name": "things-local",
+  "display_name": "Things (Local)",
+  "version": "1.3.6",
+  "description": "Private, dependency-free bridge between Claude and Things 3 on this Mac.",
+  "long_description": "Lets Claude read, search and edit Things 3 using only Apple's built-in automation and Things' official things:/// URL scheme. One readable file, no third-party packages, no network access, and no permanent deletes. All changes go through Things' official interfaces; checklists, headings, search/filtering and tag usage are read from the Things database in read-only mode.",
+  "author": {
+    "name": "Campbell Fulham",
+    "url": "https://github.com/campbellfulham"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/campbellfulham/things-mcp-local"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server/index.js"
+      ],
+      "env": {
+        "THINGS_AUTH_TOKEN": "${user_config.things_auth_token}"
+      }
+    }
+  },
+  "user_config": {
+    "things_auth_token": {
+      "type": "string",
+      "title": "Things URL auth token (optional)",
+      "description": "Unlocks evening and reminder-time scheduling, checklist edits, heading moves and deadline clearing on existing to-dos. In Things: Settings → General → Enable Things URLs → Manage.",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "tools": [
+    {
+      "name": "get_list",
+      "description": "Read Inbox, Today, Upcoming, Anytime, Someday, Logbook or Trash"
+    },
+    {
+      "name": "get_projects",
+      "description": "List projects"
+    },
+    {
+      "name": "get_areas",
+      "description": "List areas"
+    },
+    {
+      "name": "get_tags",
+      "description": "List tags"
+    },
+    {
+      "name": "get_project",
+      "description": "Read a project and its to-dos"
+    },
+    {
+      "name": "get_area",
+      "description": "Read an area's projects and to-dos"
+    },
+    {
+      "name": "search",
+      "description": "Search titles and notes"
+    },
+    {
+      "name": "get_item",
+      "description": "Read one item in full"
+    },
+    {
+      "name": "add_todo",
+      "description": "Create a to-do"
+    },
+    {
+      "name": "add_project",
+      "description": "Create a project with headings and to-dos"
+    },
+    {
+      "name": "update_item",
+      "description": "Edit, schedule, tag, move or complete an item"
+    },
+    {
+      "name": "add_area",
+      "description": "Create an area"
+    },
+    {
+      "name": "update_area",
+      "description": "Rename an area and/or set its tags"
+    },
+    {
+      "name": "bulk_update",
+      "description": "Apply one change to many items at once"
+    },
+    {
+      "name": "set_checklist_items",
+      "description": "Tick, untick or cancel individual checklist items"
+    },
+    {
+      "name": "duplicate_item",
+      "description": "Duplicate a to-do or project"
+    },
+    {
+      "name": "update_tag",
+      "description": "Rename a tag or nest it under another"
+    },
+    {
+      "name": "restore_from_trash",
+      "description": "Take an item out of the Trash"
+    },
+    {
+      "name": "find",
+      "description": "Search and filter by tag, status, project, area, text and dates (read-only)"
+    },
+    {
+      "name": "get_tag_usage",
+      "description": "Count how many items use each tag (read-only)"
+    },
+    {
+      "name": "add_tag",
+      "description": "Create a tag"
+    },
+    {
+      "name": "move_to_trash",
+      "description": "Move an item to the Things Trash (restorable)"
+    },
+    {
+      "name": "get_checklist",
+      "description": "Read a to-do's checklist items (read-only)"
+    },
+    {
+      "name": "get_headings",
+      "description": "Read a project's headings and the to-dos under each (read-only)"
+    },
+    {
+      "name": "status",
+      "description": "Show version, token and database-read status"
+    },
+    {
+      "name": "show_in_things",
+      "description": "Open an item or list in Things"
+    }
+  ],
+  "keywords": [
+    "things",
+    "tasks",
+    "todo",
+    "macos"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "darwin"
+    ],
+    "runtimes": {
+      "node": ">=22.5.0"
+    }
+  }
+}

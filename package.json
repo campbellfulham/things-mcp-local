@@ -1,0 +1,12 @@
+{
+  "name": "things-mcp-local",
+  "version": "1.3.6",
+  "description": "A private, dependency-free MCP server that lets Claude read and edit Things 3 on your Mac.",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "test": "node test/server.test.js && node --no-warnings test/database.test.js",
+    "pack": "npx -y @anthropic-ai/mcpb@2.1.2 pack . things-local.mcpb"
+  }
+}

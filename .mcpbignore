@@ -1,0 +1,7 @@
+test/
+docs/
+.git/
+.gitignore
+package.json
+CHANGELOG.md
+*.mcpb
